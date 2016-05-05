@@ -18,8 +18,6 @@ try:
     import qiradb
     import arch
 
-    # new home of static2
-    sys.path.append(qira_config.BASEDIR+"/static2")
     import static2
 except ImportError:
     print 'Qira Import modules Error.'
@@ -127,13 +125,13 @@ class Program(object):
         self.runnable = False
 
         # bring this back
-        if self.program != "/tmp/qira_binary":
+        if self.program != qira_config.BINARY_FILE_BASE:
             try:
-                os.unlink("/tmp/qira_binary")
+                os.unlink(qira_config.BINARY_FILE_BASE)
             except Exception as err:
                 pass
             finally:
-                os.symlink(os.path.realpath(self.program), "/tmp/qira_binary")
+                os.symlink(os.path.realpath(self.program), qira_config.BINARY_FILE_BASE)
 
         # defaultargs for qira binary
         self.defaultargs = [
@@ -149,10 +147,10 @@ class Program(object):
         self.identify_program()
 
     def identify_program(self):
-        qemu_dir = qira_config.BASEDIR + "/tracers/qemu/"
-        pin_dir = qira_config.BASEDIR + "/tracers/pin/"
-        lib_dir = qira_config.BASEDIR + "/libs/"
-        self.pinbinary = pin_dir + "pin-latest/pin"
+        qemu_dir = qira_config.QEMU_DIR
+        pin_dir = qira_config.PIN_DIR
+        lib_dir = qira_config.LIB_DIR
+        self.pinbinary = qira_config.PIN_BINARY
 
         # pmaps is global, but updated by the traces
         progdat = open(self.program, "rb").read(0x800)
@@ -163,11 +161,13 @@ class Program(object):
             self.fb = struct.unpack("H", progdat[0x12:0x14])[0]   # e_machine
 
             def use_lib(architecture):
-                maybe_path = lib_dir + architecture + "/"
+                maybe_path = os.path.join(lib_dir, architecture)
                 if (('QEMU_LD_PREFIX' not in os.environ) and
                         (os.path.exists(maybe_path))):
                     os.environ['QEMU_LD_PREFIX'] = os.path.realpath(maybe_path)
                     print "**** set QEMU_LD_PREFIX to", os.environ['QEMU_LD_PREFIX']
+                else:
+                    print "**** QEMU_LD_PREFIX is ", os.environ['QEMU_LD_PREFIX']
 
             if self.fb == 0x28:
                 if '/lib/ld-linux.so.3' in progdat:
@@ -175,35 +175,35 @@ class Program(object):
                 elif '/lib/ld-linux-armhf.so.3' in progdat:
                     use_lib('armhf')
                 self.tregs = arch.ARMREGS
-                self.qirabinary = qemu_dir + "qira-arm"
+                self.qirabinary = os.path.join(qemu_dir, "qira-arm")
             elif self.fb == 0xb7:
                 use_lib('arm64')
                 self.tregs = arch.AARCH64REGS
-                self.qirabinary = qemu_dir + "qira-aarch64"
+                self.qirabinary = os.path.join(qemu_dir, "qira-aarch64")
             elif self.fb == 0x3e:
                 self.tregs = arch.X64REGS
-                self.qirabinary = qemu_dir + "qira-x86_64"
-                self.pintool = pin_dir + "obj-intel64/qirapin.so"
+                self.qirabinary = os.path.join(qemu_dir, "qira-x86_64")
+                self.pintool = os.path.join(pin_dir, "obj-intel64", "qirapin.so")
             elif self.fb == 0x03:
                 use_lib('i386')
                 self.tregs = arch.X86REGS
-                self.qirabinary = qemu_dir + "qira-i386"
-                self.pintool = pin_dir + "obj-ia32/qirapin.so"
+                self.qirabinary = os.path.join(qemu_dir, "qira-i386")
+                self.pintool = os.path.join(pin_dir, "obj-ia32", "qirapin.so")
             elif self.fb == 0x800:
                 use_lib('mips')
                 arch.MIPSREGS[2:-1] = (True, "mips")
                 self.tregs = arch.MIPSREGS
-                self.qirabinary = qemu_dir + 'qira-mips'
+                self.qirabinary = os.path.join(qemu_dir, "qira-mips")
             elif self.fb == 0x08:
                 use_lib('mipsel')
                 arch.MIPSREGS[2:-1] = (False, "mipsel")
                 self.tregs = arch.MIPSREGS
-                self.qirabinary = qemu_dir + 'qira-mipsel'
+                self.qirabinary = os.path.join(qemu_dir, "qira-mipsel")
             # big endian...
             elif self.fb == 0x1400:
                 use_lib('powerpc')
                 self.tregs = arch.PPCREGS
-                self.qirabinary = qemu_dir + "qira-ppc"
+                self.qirabinary = os.path.join(qemu_dir, "qira-ppc")
             else:
                 raise Exception("binary type " +
                                 hex(self.fb) + " not supported")
@@ -271,7 +271,7 @@ class Program(object):
                     self.pintool = ""
                 else:
                     self.tregs = arch.X86REGS
-                    self.pintool = pin_dir + "obj-ia32/qirapin.dylib"
+                    self.pintool = os.path.join(pin_dir, "obj-ia32", "qirapin.dylib")
             else:
                 raise Exception("Mach-O FAT (Universal) binary not supported")
             if self.macharch == "arm" or self.macharch == "aarch64":
@@ -314,7 +314,7 @@ class Program(object):
                     self.pintool = ""
                 else:
                     self.tregs = arch.X64REGS
-                    self.pintool = pin_dir + "obj-intel64/qirapin.dylib"
+                    self.pintool = os.path.join(pin_dir, "obj-intel64", "qirapin.dylib")
             elif progdat[0x0:0x04] in (MACHO_MAGIC, MACHO_CIGAM):
                 if progdat[0x0:0x04] == MACHO_CIGAM:
                     arch.ARMREGS[2] = True
@@ -323,7 +323,7 @@ class Program(object):
                     self.pintool = ""
                 else:
                     self.tregs = arch.X86REGS
-                    self.pintool = pin_dir + "obj-ia32/qirapin.dylib"
+                    self.pintool = os.path.join(pin_dir, "obj-ia32", "qirapin.dylib")
             else:
                 raise Exception("Mach-O binary not supported")
             if self.macharch == "arm" or self.macharch == "aarch64":
@@ -348,12 +348,12 @@ class Program(object):
         if os.name == "nt":
             return
         try:
-            os.unlink("/tmp/qira_asm")
+            os.unlink(qira_config.ASM_FILE_BASE)
         except Exception as err:
             pass
 
-        open("/tmp/qira_asm", "a").close()
-        self.qira_asm_file = open("/tmp/qira_asm", "r")
+        open(qira_config.ASM_FILE_BASE, "a").close()
+        self.qira_asm_file = open(qira_config.ASM_FILE_BASE, "r")
 
     def read_asm_file(self):
         if os.name == "nt":
@@ -615,7 +615,7 @@ class Trace(object):
             print "*** using base %d for %d" % (forkbase, self.forknum)
             base_file = open(qira_config.TRACE_FILE_BASE + str(forkbase) + "_base")
         except Exception as err:
-            print "*** base file issue", er
+            print "*** base file issue", err
             # done
             return
 
