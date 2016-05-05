@@ -12,8 +12,6 @@ try:
 
     import arch
 
-    # new home of static2
-    sys.path.append(qira_config.BASEDIR + "/static2")
     import static2
 except ImportError:
     print 'Qira Import modules Error.'
@@ -90,8 +88,8 @@ def draw_multigraph(dm_blocks):
                        tailport="s")
         graph.add_edge(e)
 
-    print "drawing png @ /tmp/graph.png"
-    graph.write_png('/tmp/graph.png')
+    print "drawing png @ " + qira_config.GRAPH_FILE_BASE
+    graph.write_png(qira_config.GRAPH_FILE_BASE)
 
 
 def get_blocks(gb_flow, static=True):
@@ -605,10 +603,10 @@ def slice(q_s_trace, inclnum):
             # print clnum, overwrite, st
 
         """
-    r = q_s_trace.db.fetch_changes_by_clnum(clnum, 100)
-    for e in r:
-      print e
-    """
+        r = q_s_trace.db.fetch_changes_by_clnum(clnum, 100)
+        for e in r:
+        print e
+        """
 
         clnum -= 1
 
@@ -618,12 +616,12 @@ def slice(q_s_trace, inclnum):
 
 if __name__ == "__main__":
     # can run standalone for testing
-    program = qira_program.Program("/tmp/qira_binary", [])
-    trace = program.add_trace("/tmp/qira_logs/0", 0)
+    program = qira_program.Program(qira_config.BINARY_FILE_BASE, [])
+    trace = program.add_trace(qira_config.TRACE_FILE_BASE+"0", 0)
     while not trace.db.did_update():
         time.sleep(0.1)
     print "loaded"
-    program.qira_asm_file = open("/tmp/qira_asm", "r")
+    program.qira_asm_file = open(qira_config.ASM_FILE_BASE, "r")
     qira_program.Program.read_asm_file(program)
 
     # *** analysis time ***
